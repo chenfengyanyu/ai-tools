@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Formatter</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+  <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldgutter.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/brace-fold.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/2.0.3/marked.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #1a1a1a;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .title {
+      font-size: 48px;
+      font-weight: bold;
+      color: #4a90e2;
+      margin-bottom: 30px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .title::after {
+      content: attr(data-text);
+      position: absolute;
+      left: 0;
+      bottom: -20px;
+      transform: rotateX(180deg);
+      background-image: linear-gradient(0deg, #4a90e2, transparent);
+      -webkit-background-clip: text;
+      color: transparent;
+      opacity: 0.5;
+    }
+
+    .container {
+      display: flex;
+      width: 90%;
+      max-width: 1200px;
+      height: 70vh;
+      gap: 20px;
+      background-color: #2a2a2a;
+      padding: 20px;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .column {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .column:last-child {
+      flex: 0 0 50%;
+      max-width: 50%;
+      overflow: auto;
+    }
+
+    #editor-container {
+      height: calc(100% - 100px);
+      background-color: #333;
+      border: 1px solid #444;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .ql-toolbar.ql-snow {
+      border: none;
+      border-bottom: 1px solid #444;
+      background-color: #2a2a2a;
+    }
+
+    .ql-container.ql-snow {
+      border: none;
+    }
+
+    .ql-editor {
+      color: #e0e0e0;
+      font-size: 16px;
+      font-family: Arial, sans-serif;
+      text-align: left;
+      padding: 12px 15px;
+    }
+
+    .ql-editor p {
+      text-align: left;
+    }
+
+    .ql-editor.ql-blank::before {
+      color: #888;
+      font-style: normal;
+      font-size: 16px;
+      text-align: left;
+      left: 15px;
+      pointer-events: none;
+    }
+
+    #output-container {
+      height: calc(100% - 100px);
+      background-color: #333;
+      border: 1px solid #444;
+      border-radius: 8px;
+      overflow: auto;
+      padding: 12px 15px;
+    }
+
+    #output {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      color: #e0e0e0;
+      font-size: 14px;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    .loader-container {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    .loader {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #3498db;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+
+    .loader-text {
+      color: #e0e0e0;
+      font-size: 14px;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .button-container {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 15px;
+    }
+
+    button {
+      background-color: #4a90e2;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      display: flex;
+      align-items: center;
+    }
+
+    button:hover {
+      background-color: #357abd;
+    }
+
+    button i {
+      margin-right: 8px;
+    }
+
+    #clear-button {
+      background-color: #e74c3c;
+    }
+
+    #clear-button:hover {
+      background-color: #c0392b;
+    }
+
+    #generate-preview-button {
+      background-color: #4CAF50;
+      /* 绿色 */
+    }
+
+    #generate-preview-button:hover {
+      background-color: #45a049;
+    }
+
+    h2 {
+      color: #4a90e2;
+      margin-top: 0;
+    }
+
+    .error-message {
+      color: #ff4d4d;
+      text-align: center;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+
+    .CodeMirror {
+      height: 100%;
+      border: none;
+      font-size: 14px;
+      background-color: #333;
+      color: #e0e0e0;
+    }
+
+    .CodeMirror-gutters {
+      background-color: #2a2a2a;
+      border-right: 1px solid #444;
+    }
+
+    .CodeMirror-linenumber {
+      color: #888;
+    }
+
+    .CodeMirror-foldgutter {
+      color: #888;
+    }
+
+    .cm-s-custom .cm-string {
+      color: #ce9178;
+    }
+
+    .cm-s-custom .cm-number {
+      color: #b5cea8;
+    }
+
+    .cm-s-custom .cm-property {
+      color: #9cdcfe;
+    }
+
+    .cm-s-custom .cm-atom {
+      color: #569cd6;
+    }
+
+    .cm-s-custom .cm-keyword {
+      color: #569cd6;
+    }
+
+    .cm-s-custom .cm-variable {
+      color: #9cdcfe;
+    }
+
+    .cm-s-custom .cm-operator {
+      color: #d4d4d4;
+    }
+
+    .cm-s-custom .cm-comment {
+      color: #6a9955;
+    }
+
+    .cm-s-custom .cm-bracket {
+      color: #ffd700;
+    }
+
+    .footer {
+      margin-top: 20px;
+      margin-bottom: 20px;
+      /* 增加底部边距 */
+      font-size: 14px;
+      color: #888;
+    }
+
+    .step-container {
+      position: fixed;
+      right: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .step {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: #333;
+      color: #888;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 10px 0;
+      font-size: 14px;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .step.active {
+      background-color: #4a90e2;
+      color: #fff;
+    }
+
+    .step::after {
+      content: attr(data-title);
+      position: absolute;
+      right: 50px;
+      white-space: nowrap;
+      background-color: #4a90e2;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .step:hover::after {
+      opacity: 1;
+    }
+
+    .step-line {
+      width: 2px;
+      height: 20px;
+      background-color: #444;
+    }
+
+    #preview-container {
+      display: none;
+      width: 90%;
+      max-width: 1200px;
+      margin: 20px auto;
+      background-color: #2a2a2a;
+      padding: 20px;
+      border-radius: 10px;
+      color: #e0e0e0;
+      transition: opacity 0.3s ease;
+      position: relative;
+      padding-bottom: 50px;
+      /* 为底部按钮留出空间 */
+    }
+
+    #preview-content {
+      line-height: 1.6;
+    }
+
+    #preview-content h1,
+    #preview-content h2,
+    #preview-content h3 {
+      color: #4a90e2;
+    }
+
+    #preview-content a {
+      color: #4a90e2;
+      text-decoration: none;
+    }
+
+    #preview-content a:hover {
+      text-decoration: underline;
+    }
+
+    #preview-content pre {
+      background-color: #333;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+
+    #preview-content img {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .preview-loader {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 200px;
+    }
+
+    .preview-loader .loader {
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #4a90e2;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+    }
+
+    #preview-copy-button {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background-color: #4a90e2;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    #preview-copy-button:hover {
+      background-color: #357abd;
+    }
+
+    #preview-copy-button i {
+      margin-right: 8px;
+    }
+
+    #summary {
+      margin-top: 10px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: #e0e0e0;
+      /* 改为浅色，以适应深色背景 */
+      padding: 10px;
+      /* 添加内边距 */
+      border-radius: 5px;
+      /* 添加圆角 */
+      display: block;
+      /* 确保显示为块级元素 */
+      width: 100%;
+      /* 设置宽度 */
+      box-sizing: border-box;
+      /* 确保padding不会增加总宽度 */
+    }
+
+    .settings-icon {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 24px;
+      color: #4a90e2;
+      cursor: pointer;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.4);
+      overflow: auto;
+      /* 添加滚动条，以防内容过长 */
+    }
+
+    .modal-content {
+      background-color: #2a2a2a;
+      margin: 10% auto;
+      /* 调整上边距 */
+      padding: 20px;
+      border: 1px solid #888;
+      width: 90%;
+      /* 使用百分比宽度 */
+      max-width: 400px;
+      /* 设置最大宽度 */
+      border-radius: 5px;
+      box-sizing: border-box;
+      /* 确保padding不会增加总宽度 */
+      position: relative;
+    }
+
+    .modal-content h2 {
+      color: #4a90e2;
+      margin-top: 0;
+      margin-bottom: 15px;
+      /* 增加底部间距 */
+      font-size: 1.5em;
+      /* 调整标题大小 */
+    }
+
+    .modal-content input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #444;
+      background-color: #333;
+      color: #e0e0e0;
+      box-sizing: border-box;
+      /* 确保padding不会增加总宽度 */
+      font-size: 14px;
+      /* 设置合适的字体大小 */
+      max-width: 100%;
+      /* 确保不会超出父容器 */
+    }
+
+    .api-key-hint {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 15px;
+      line-height: 1.4;
+    }
+
+    .api-key-hint a {
+      color: #4a90e2;
+      text-decoration: none;
+    }
+
+    .api-key-hint a:hover {
+      text-decoration: underline;
+    }
+
+    .modal-content button {
+      background-color: #4a90e2;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      text-align: center;
+      text-decoration: none;
+      display: block;
+      /* 改为块级元素 */
+      font-size: 16px;
+      margin: 15px 0 0 0;
+      /* 调整上边距，移除左右边距 */
+      cursor: pointer;
+      border-radius: 5px;
+      width: 100%;
+    }
+
+    .close {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      color: #aaa;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .close:hover,
+    .close:focus {
+      color: #4a90e2;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    /* 添加媒体查询，适应小屏幕设备 */
+    @media screen and (max-width: 600px) {
+      .modal-content {
+        width: 95%;
+        margin: 20% auto;
+        /* 在小屏幕上增加上边距 */
+        padding: 15px;
+        /* 减少内边距 */
+      }
+
+      .modal-content input,
+      .modal-content button {
+        font-size: 16px;
+        /* 在移动设备上增加字体大小，提高可读性 */
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h1 class="title" data-text="Content Formatter">Content Formatter</h1>
+  <div id="settings-icon" class="settings-icon">
+    <i class="fas fa-cog"></i>
+  </div>
+
+  <div id="appkey-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Enter AppKey</h2>
+      <p class="api-key-hint">大模型使用 Kimi API，如无，请前往 <a href="https://platform.moonshot.cn/console/api-keys"
+          target="_blank">Kimi 官网</a>申请。</p>
+      <input type="password" id="appkey-input" placeholder="Enter your AppKey">
+      <button id="save-appkey">Save</button>
+    </div>
+  </div>
+  <div class="container">
+    <div class="column">
+      <h2>Input</h2>
+      <div id="editor-container"></div>
+      <div id="error-container" class="error-message"></div>
+      <div class="button-container">
+        <button id="clear-button" onclick="clearEditor()"><i class="fas fa-trash"></i>Clear</button>
+        <button id="submit-button" onclick="validateAndFormat()"><i class="fas fa-play"></i>Submit</button>
+      </div>
+    </div>
+    <div class="column">
+      <h2>Output</h2>
+      <div class="loader-container">
+        <div class="loader"></div>
+        <div class="loader-text">数据分析优化中！</div>
+      </div>
+      <div id="output-container"></div>
+      <div class="button-container">
+        <button onclick="toggleFold()"><i class="fas fa-compress-alt"></i>Toggle Fold</button>
+        <button onclick="copyOutput()"><i class="fas fa-copy"></i>Copy</button>
+        <button id="generate-preview-button" onclick="generatePreview()"><i class="fas fa-eye"></i>Generate
+          Preview</button>
+      </div>
+    </div>
+  </div>
+  <div id="preview-container">
+    <h2>Preview</h2>
+    <div id="preview-content"></div>
+    <button id="preview-copy-button" onclick="copyPreview()">
+      <i class="fas fa-copy"></i>Copy Preview
+    </button>
+  </div>
+  <div class="footer">
+    Copyright © 2024, Powered by Jartto
+  </div>
+
+  <div class="step-container">
+    <div class="step" data-title="编写内容">1</div>
+    <div class="step-line"></div>
+    <div class="step" data-title="数据处理">2</div>
+    <div class="step-line"></div>
+    <div class="step" data-title="生成预览">3</div>
+  </div>
+
+  <script>
+    let quill;
+    let currentJSON;
+    let editor;
+    const errorContainer = document.getElementById('error-container');
+    const summary = document.getElementById('summary');
+    const loaderContainer = document.querySelector('.loader-container');
+    let startTime; // 用于记录开始时间
+    let appKey = '';
+
+    document.addEventListener('DOMContentLoaded', function () {
+      quill = new Quill('#editor-container', {
+        theme: 'snow',
+        placeholder: 'Enter your content here...',
+        modules: {
+          toolbar: [
+            ['bold', 'italic', 'underline', 'strike'],
+            ['blockquote', 'code-block'],
+            [{ 'header': 1 }, { 'header': 2 }],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            [{ 'script': 'sub' }, { 'script': 'super' }],
+            [{ 'indent': '-1' }, { 'indent': '+1' }],
+            [{ 'direction': 'rtl' }],
+            [{ 'size': ['small', false, 'large', 'huge'] }],
+            [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+            [{ 'color': [] }, { 'background': [] }],
+            [{ 'font': [] }],
+            [{ 'align': [] }],
+            ['clean']
+          ]
+        }
+      });
+
+      editor = CodeMirror(document.getElementById("output-container"), {
+        mode: "application/json",
+        theme: "custom",
+        lineNumbers: true,
+        foldGutter: true,
+        gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
+        readOnly: true,
+        lineWrapping: true
+      });
+
+      quill.on('text-change', function () {
+        if (quill.getText().trim() !== '') {
+          errorContainer.textContent = '';
+          updateStep(1);  // 当用户输入内容时，更新步骤到1
+        } else {
+          updateStep(0);  // 如果内容为空，重置步骤到0
+        }
+      });
+
+      // 监听回车键
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' && event.ctrlKey) {
+          validateAndFormat();
+        }
+      });
+
+      // 确保 summary 元素存在
+      if (!summary) {
+        console.error('Summary element not found!');
+      }
+
+      const settingsIcon = document.getElementById('settings-icon');
+      const appkeyModal = document.getElementById('appkey-modal');
+      const saveAppKeyButton = document.getElementById('save-appkey');
+      const closeButton = appkeyModal.querySelector('.close');
+
+      settingsIcon.addEventListener('click', function () {
+        appkeyModal.style.display = 'block';
+      });
+
+      closeButton.addEventListener('click', function() {
+        appkeyModal.style.display = 'none';
+      });
+
+      window.addEventListener('click', function(event) {
+        if (event.target == appkeyModal) {
+          appkeyModal.style.display = 'none';
+        }
+      });
+
+      saveAppKeyButton.addEventListener('click', function () {
+        const appKeyInput = document.getElementById('appkey-input');
+        appKey = appKeyInput.value;
+        if (appKey) {
+          localStorage.setItem('appKey', appKey);
+          localStorage.setItem('appKeyExpiry', Date.now() + 24 * 60 * 60 * 1000);
+          appkeyModal.style.display = 'none';
+        } else {
+          alert('Please enter a valid AppKey');
+        }
+      });
+
+      // Check for existing AppKey and its expiry
+      const storedAppKey = localStorage.getItem('appKey');
+      const appKeyExpiry = localStorage.getItem('appKeyExpiry');
+      if (storedAppKey && appKeyExpiry && Date.now() < parseInt(appKeyExpiry)) {
+        appKey = storedAppKey;
+      } else {
+        localStorage.removeItem('appKey');
+        localStorage.removeItem('appKeyExpiry');
+      }
+    });
+
+    function validateAndFormat() {
+      const inputValue = quill.root.innerHTML.trim();
+
+      if (quill.getText().trim() === '') {
+        errorContainer.textContent = 'Please enter some content before submitting.';
+        return;
+      }
+
+      editor.setValue('');
+      if (summary) summary.textContent = '';  // 清空 summary
+      loaderContainer.style.display = 'flex';
+      updateStep(1);  // 开始数据处理时，更新步骤到1
+      startTime = Date.now(); // 记录开始时间
+      formatContent(inputValue);
+    }
+
+    function clearEditor() {
+      if (confirm("Are you sure you want to clear everything? This will refresh the page.")) {
+        window.location.reload();
+      }
+    }
+
+    async function formatContent(content) {
+      if (!appKey) {
+        alert('Please set your AppKey first');
+        return;
+      }
+
+      const apiUrl = 'https://api.moonshot.cn/v1/chat/completions';
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${appKey}`
+      };
+      const body = {
+        model: 'moonshot-v1-32k',
+        messages: [
+          { role: 'system', content: '你是一个超级文本解析器，可以将富文本内容完美解析为 JSON 数据格式，保留原文特征和准确性。要求：1、必须包含字段 title、url、categorization、score、summary字段；2、摘要、标题部分进行优化和润色，不偏离原文意思，且足够吸引人。3、原文链接如何可以获取到时间，请补充在字段内；4、输出结构化的 JSON 数据；5、如果有多条数据，请输出数组结构。' },
+          { role: 'user', content: content }
+        ],
+        temperature: 0.3
+      };
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        const data = await response.json();
+        const result = data.choices[0].message.content;
+
+        try {
+          const jsonResult = JSON.parse(result);
+          currentJSON = Array.isArray(jsonResult) ? jsonResult : [jsonResult];
+          displayFormattedJSON(currentJSON);
+        } catch (jsonError) {
+          console.error('JSON parsing error:', jsonError);
+          editor.setValue(result);
+          updateStep(1);  // 如果出错，保持在步骤1
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        editor.setValue('An error occurred while processing your request.');
+        updateStep(1);  // 如果出错，保持在步骤1
+      } finally {
+        loaderContainer.style.display = 'none';
+      }
+    }
+
+    function displayFormattedJSON(json) {
+      editor.setValue(JSON.stringify(json, null, 2));
+      editor.autoFormatRange({ line: 0, ch: 0 }, { line: editor.lineCount() });
+
+      const endTime = Date.now();
+      const processingTime = ((endTime - startTime) / 1000).toFixed(2); // 计算处理时间（秒）
+
+      if (summary) {
+        summary.textContent = `内容均已完成化，并结构化完成。本次处理数据 ${json.length} 条，耗时 ${processingTime} 秒`;
+        summary.style.display = 'block';  // 确保 summary 是可见的
+      } else {
+        console.error('Summary element not found when trying to update content');
+      }
+      updateStep(2);  // JSON 编辑器更新后，更新步骤到2
+    }
+
+    function toggleFold() {
+      const cm = editor;
+      for (let i = 0; i < cm.lineCount(); i++) {
+        cm.foldCode(CodeMirror.Pos(i, 0));
+      }
+    }
+
+    function copyOutput() {
+      const content = editor.getValue();
+      if (content.trim() !== '' && content !== 'Waiting for your input...') {
+        navigator.clipboard.writeText(content).then(() => {
+          alert('Output copied to clipboard!');
+        }).catch(err => {
+          console.error('Failed to copy: ', err);
+          alert('Failed to copy output.');
+        });
+      } else {
+        alert('There is no content to copy yet.');
+      }
+    }
+
+    function updateStep(stepNumber) {
+      const steps = document.querySelectorAll('.step');
+      steps.forEach((step, index) => {
+        if (index < stepNumber) {
+          step.classList.add('active');
+        } else {
+          step.classList.remove('active');
+        }
+      });
+    }
+
+    async function generatePreview() {
+      if (!currentJSON || currentJSON.length === 0) {
+        alert('Please format content first before generating preview.');
+        return;
+      }
+
+      updateStep(3);  // 开始生成预览时，更新步骤到3
+
+      const previewContainer = document.getElementById('preview-container');
+      const previewContent = document.getElementById('preview-content');
+
+      // 显示预览容器并添加加载动画
+      previewContainer.style.display = 'block';
+      previewContent.innerHTML = '<div class="preview-loader"><div class="loader"></div></div>';
+
+      // 平滑滚动到预览容器
+      previewContainer.scrollIntoView({ behavior: 'smooth' });
+
+      const apiUrl = 'https://api.moonshot.cn/v1/chat/completions';
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${appKey}`
+      };
+      const body = {
+        model: 'moonshot-v1-32k',
+        messages: [
+          { role: 'system', content: '你是一个专业的文章预览生成器，可以根据提供的 JSON 数据生成吸引人的文章预览。要求：1、使用 Markdown 格式；2、整体总结给定的 JSON 数据源，输出引言内容；3、对 JSON 中的信息进行还原，如：标题、链接、分类、评分、总结；4、深入剖析 JSON 内容，完成总结输出；5、内容不要分段太多，丰富细节，行文流畅；' },
+          { role: 'user', content: JSON.stringify(currentJSON) }
+        ],
+        temperature: 0.7
+      };
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify(body)
+        });
+
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        const data = await response.json();
+        const result = data.choices[0].message.content;
+
+        // 淡出加载动画
+        previewContent.style.opacity = '0';
+
+        setTimeout(() => {
+          // 将 Markdown 转换为 HTML
+          previewContent.innerHTML = marked(result);
+
+          // 淡入新内容
+          previewContent.style.opacity = '1';
+
+          // 显示复制按钮
+          document.getElementById('preview-copy-button').style.display = 'block';
+        }, 300);
+      } catch (error) {
+        console.error('Error:', error);
+        previewContent.innerHTML = '<p>An error occurred while generating the preview.</p>';
+        // 隐藏复制按钮
+        document.getElementById('preview-copy-button').style.display = 'none';
+      }
+    }
+
+    function copyPreview() {
+      const previewContent = document.getElementById('preview-content');
+      const range = document.createRange();
+      range.selectNode(previewContent);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+
+      try {
+        const successful = document.execCommand('copy');
+        const msg = successful ? 'successful' : 'unsuccessful';
+        console.log('Copy preview was ' + msg);
+        alert('Preview content copied to clipboard!');
+      } catch (err) {
+        console.error('Unable to copy preview', err);
+        alert('Failed to copy preview content. Please try again.');
+      }
+
+      window.getSelection().removeAllRanges();
+    }
+
+    // 页面加载时设置默认文案
+    window.onload = function () {
+      editor.setValue('Waiting for your input...');
+      loaderContainer.style.display = 'none';
+      if (summary) summary.textContent = '';
+      updateStep(0);  // 页面加载时，初始化步骤为0
+      document.getElementById('preview-copy-button').style.display = 'none';
+    };
+
+    // Clear AppKey when the window is closed
+    window.addEventListener('beforeunload', function () {
+      localStorage.removeItem('appKey');
+      localStorage.removeItem('appKeyExpiry');
+    });
+  </script>
+</body>
+
+</html>
